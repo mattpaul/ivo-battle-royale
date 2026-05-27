@@ -1,0 +1,27 @@
+[
+  {
+    "id": "md5-ai-battle-royale",
+    "prompt": "What is the md5sum of \"AI Battle Royale\"?",
+    "answer": "4359c152baed9981d7b783b6a8bf2704"
+  },
+  {
+    "id": "hex-255-power-10",
+    "prompt": "What is the base-16 (hex) representation of 255^10?",
+    "answer": "0xf62c88d104d1882cf601"
+  },
+  {
+    "id": "large-integer-product",
+    "prompt": "What is 123456789 * 987654321?",
+    "answer": "121932631112635269"
+  },
+  {
+    "id": "modular-exponentiation",
+    "prompt": "What is 7^77 mod 999999937?",
+    "answer": "860842589"
+  },
+  {
+    "id": "ascii-sum-pangram",
+    "prompt": "What is the sum of the ASCII values of every character in the string \"The quick brown fox jumps over the lazy dog\"?",
+    "answer": "4057"
+  }
+]

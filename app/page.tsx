@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-store";
 
 type Viewer = {
   username: string;
@@ -15,7 +16,6 @@ type Competitor = {
 
 type Challenge = {
   id: string;
-  title: string;
   prompt: string;
   submittedBy: string;
   target: "active" | "next";
@@ -61,14 +61,14 @@ type GameResponse = {
 };
 
 type ChallengeForm = {
-  title: string;
+  id: string;
   prompt: string;
   expectedAnswer: string;
   target: "active" | "next";
 };
 
 const blankChallenge: ChallengeForm = {
-  title: "",
+  id: "",
   prompt: "",
   expectedAnswer: "",
   target: "active"
@@ -79,7 +79,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [username, setUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
-  const [competitorCount, setCompetitorCount] = useState(8);
+  const [competitorCount, setCompetitorCount] = useState(DEFAULT_COMPETITOR_COUNT);
   const [challenge, setChallenge] = useState(blankChallenge);
 
   const winner = useMemo(() => {
@@ -259,7 +259,7 @@ export default function Home() {
                   data.battle.skirmishes.slice(0, 6).map((skirmish) => (
                     <li className="item skirmish-log" key={skirmish.id}>
                       <div className="item-title">
-                        <strong>{skirmish.challenge.title}</strong>
+                        <strong>{skirmish.challenge.id}</strong>
                         <span className="pill">{skirmish.status}</span>
                       </div>
                       <span className="muted">{skirmish.summary}</span>
@@ -320,13 +320,13 @@ export default function Home() {
                 </select>
               </label>
               <label>
-                Title
+                ID
                 <input
                   onChange={(event) =>
-                    setChallenge((current) => ({ ...current, title: event.target.value }))
+                    setChallenge((current) => ({ ...current, id: event.target.value }))
                   }
                   required
-                  value={challenge.title}
+                  value={challenge.id}
                 />
               </label>
               <label>
@@ -374,7 +374,7 @@ export default function Home() {
                 data.battle.queuedChallenges.map((queued) => (
                   <li className="item" key={queued.id}>
                     <div className="item-title">
-                      <strong>{queued.title}</strong>
+                      <strong>{queued.id}</strong>
                       {isAdmin ? (
                         <button
                           className="secondary"

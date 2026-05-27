@@ -16,7 +16,6 @@ export type Competitor = {
 
 export type Challenge = {
   id: string;
-  title: string;
   prompt: string;
   expectedAnswer?: string;
   submittedBy: string;
@@ -63,6 +62,8 @@ type Store = {
   adminSessions: Set<string>;
 };
 
+export const DEFAULT_COMPETITOR_COUNT = 4;
+
 const competitorNames = [
   "Ada Lambda",
   "Grace Hopperbot",
@@ -85,7 +86,7 @@ const competitorNames = [
 const defaultBattle = (): BattleState => ({
   status: "lobby",
   config: {
-    competitorCount: 8
+    competitorCount: DEFAULT_COMPETITOR_COUNT
   },
   competitors: [],
   activeChallenges: [],
@@ -157,15 +158,14 @@ export function startBattle() {
 }
 
 export function submitChallenge(input: {
-  title: string;
+  id: string;
   prompt: string;
   expectedAnswer?: string;
   submittedBy: string;
   target: ChallengeTarget;
 }) {
   const challenge: Challenge = {
-    id: randomUUID(),
-    title: input.title.trim(),
+    id: input.id.trim(),
     prompt: input.prompt.trim(),
     expectedAnswer: input.expectedAnswer?.trim() || undefined,
     submittedBy: input.submittedBy,
@@ -173,8 +173,8 @@ export function submitChallenge(input: {
     createdAt: new Date().toISOString()
   };
 
-  if (!challenge.title || !challenge.prompt) {
-    throw new Error("Challenge title and prompt are required.");
+  if (!challenge.id || !challenge.prompt) {
+    throw new Error("Challenge id and prompt are required.");
   }
 
   if (challenge.target === "active" && store.battle.status === "active") {

@@ -110,7 +110,6 @@ function attempt(
 function sampleChallenge() {
   return {
     id: "challenge-1",
-    title: "FizzBuzz",
     prompt: "Write FizzBuzz.",
     submittedBy: "Spectator",
     target: "active" as const,

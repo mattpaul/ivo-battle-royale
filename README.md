@@ -15,6 +15,8 @@ npm run dev
 
 The app uses an in-memory store for the first bare-bones implementation. Set `ADMIN_PASSWORD` to override the default local admin password of `admin`.
 
+Example challenge fixtures live in `config/example-challenges.json`.
+
 ## REST API
 
 - `GET /api/game` returns the current viewer, battle state, counts, competitors, queued challenges, and skirmish log.

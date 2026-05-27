@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const challenge = submitChallenge({
-      title: String(body.title || ""),
+      id: String(body.id || ""),
       prompt: String(body.prompt || ""),
       expectedAnswer: body.expectedAnswer ? String(body.expectedAnswer) : undefined,
       submittedBy: viewer.username,
