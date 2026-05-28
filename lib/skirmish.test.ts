@@ -5,7 +5,11 @@ import {
   resolveSkirmishAttempts,
   type CompetitorAttempt
 } from "./skirmish.ts";
-import { createCompetitorModelConfig, type Competitor } from "./game-store.ts";
+import {
+  createConfiguredAttemptRunner,
+  createCompetitorModelConfig,
+  type Competitor
+} from "./game-store.ts";
 
 const competitors: Competitor[] = [
   competitor("ada", "Ada Lambda"),
@@ -138,6 +142,49 @@ test("marks OpenAI competitors unconfigured when the API key is missing", () => 
   );
 });
 
+test("does not fall back to mock attempts for OpenAI competitors", async () => {
+  await withEnv(
+    {
+      OPENAI_API_KEY: undefined
+    },
+    async () => {
+      const openAICompetitor = competitor("openai", "OpenAI Agent");
+      openAICompetitor.model = {
+        provider: "openai",
+        model: "gpt-5",
+        temperature: 0.2,
+        maxOutputTokens: 2_048,
+        apiKeyEnvVar: "OPENAI_API_KEY",
+        configured: false
+      };
+
+      const attemptRunner = createConfiguredAttemptRunner();
+      const result = await attemptRunner(openAICompetitor, sampleChallenge());
+
+      assert.deepEqual(result, {
+        competitorId: "openai",
+        name: "OpenAI Agent",
+        answer: "timeout"
+      });
+    }
+  );
+});
+
+test("returns mock attempts only for mock competitors", async () => {
+  await withEnv(
+    {
+      OPENAI_API_KEY: undefined
+    },
+    async () => {
+      const attemptRunner = createConfiguredAttemptRunner();
+      const result = await attemptRunner(competitors[0], sampleChallenge());
+
+      assert.equal(result.competitorId, "ada");
+      assert.match(result.answer, /correct|incorrect|timeout/);
+    }
+  );
+});
+
 function attempt(
   competitorId: string,
   name: string,
@@ -207,7 +254,10 @@ function competitor(id: string, name: string): Competitor {
   };
 }
 
-function withEnv(overrides: Record<string, string | undefined>, callback: () => void) {
+async function withEnv(
+  overrides: Record<string, string | undefined>,
+  callback: () => void | Promise<void>
+) {
   const previous = Object.fromEntries(
     Object.keys(overrides).map((key) => [key, process.env[key]])
   );
@@ -220,7 +270,7 @@ function withEnv(overrides: Record<string, string | undefined>, callback: () => 
         process.env[key] = value;
       }
     });
-    callback();
+    await callback();
   } finally {
     Object.entries(previous).forEach(([key, value]) => {
       if (value === undefined) {

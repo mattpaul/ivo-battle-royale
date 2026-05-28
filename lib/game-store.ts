@@ -379,18 +379,27 @@ async function runSkirmishAttempts(
   return resolveSkirmishAttempts(attempts);
 }
 
-function createConfiguredAttemptRunner(): AttemptRunner {
-  const mockAttemptRunner = createMockAttemptRunner();
-
+export function createConfiguredAttemptRunner(): AttemptRunner {
   return async (competitor, challenge) => {
-    if (competitor.model.provider === "openai") {
-      return runOpenAIAttempt(competitor, challenge);
+    switch (competitor.model.provider) {
+      case "mock": {
+        debugLog(
+          `mock attempt competitor=${competitor.id} challenge=${challenge.id} model=${competitor.model.model}`
+        );
+        return createMockAttemptRunner()(competitor, challenge);
+      }
+      case "openai":
+        return runOpenAIAttempt(competitor, challenge);
+      default:
+        debugLog(
+          `attempt unsupported competitor=${competitor.id} challenge=${challenge.id} provider=${competitor.model.provider}`
+        );
+        return {
+          competitorId: competitor.id,
+          name: competitor.name,
+          answer: "incorrect"
+        };
     }
-
-    debugLog(
-      `mock attempt competitor=${competitor.id} challenge=${challenge.id} model=${competitor.model.model}`
-    );
-    return mockAttemptRunner(competitor, challenge);
   };
 }
 
@@ -633,6 +642,10 @@ function parseNumber(value: string | undefined, fallback: number) {
 }
 
 function extractOpenAIText(payload: unknown) {
+  if (!isRecord(payload) || payload.status !== "completed") {
+    debugLog(`openai payload=${JSON.stringify(payload).slice(0, 2_000)}`);
+  }
+
   if (isRecord(payload) && typeof payload.output_text === "string") {
     return payload.output_text.trim();
   }
