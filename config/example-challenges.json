@@ -22,7 +22,7 @@
   {
     "id": "hex-255-power-10",
     "prompt": "What is the base-16 (hex) representation of 255^10?",
-    "answer": "0xf62c88d104d1882cf601"
+    "answer": "f62c88d104d1882cf601"
   },
   {
     "id": "large-integer-product",
