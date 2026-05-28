@@ -97,7 +97,7 @@ export type Skirmish = {
   challenge: Challenge;
   competitorIds: string[];
   results: SkirmishCompetitorResult[];
-  status: "resolved" | "canceled";
+  status: "running" | "resolved" | "canceled";
   createdAt: string;
   summary: string;
 };
@@ -121,6 +121,7 @@ export type BattleState = {
 type Store = {
   battle: BattleState;
   adminSessions: Set<string>;
+  isProcessingChallengeQueue: boolean;
 };
 
 const competitorProfiles: CompetitorProfile[] = [
@@ -209,7 +210,8 @@ export const store: Store =
   globalStore.battleRoyaleStore ??
   (globalStore.battleRoyaleStore = {
     battle: defaultBattle(),
-    adminSessions: new Set<string>()
+    adminSessions: new Set<string>(),
+    isProcessingChallengeQueue: false
   });
 
 export function getPublicState() {
@@ -253,8 +255,8 @@ export async function startBattle() {
     status: "active",
     config: { ...store.battle.config },
     competitors,
-    activeChallenges: queuedChallenges,
-    queuedChallenges: [],
+    activeChallenges: [],
+    queuedChallenges,
     startedAt: new Date().toISOString()
   };
 
@@ -267,10 +269,7 @@ export async function startBattle() {
     );
   });
 
-  for (const challenge of queuedChallenges) {
-    debugLog(`processing queued challenge id=${challenge.id}`);
-    await resolveSkirmish(challenge);
-  }
+  scheduleChallengeQueueProcessing();
 }
 
 export async function submitChallenge(input: {
@@ -293,9 +292,13 @@ export async function submitChallenge(input: {
     throw new Error("Challenge id and prompt are required.");
   }
 
-  if (challenge.target === "active" && store.battle.status === "active") {
-    store.battle.activeChallenges.unshift(challenge);
-    await resolveSkirmish(challenge);
+  if (store.battle.status === "active") {
+    const activeBattleChallenge = { ...challenge, target: "active" as const };
+    store.battle.queuedChallenges.unshift(activeBattleChallenge);
+    debugLog(
+      `challenge enqueued for active battle id=${challenge.id} submittedBy=${challenge.submittedBy}`
+    );
+    scheduleChallengeQueueProcessing();
   } else {
     store.battle.queuedChallenges.unshift({ ...challenge, target: "next" });
     debugLog(`challenge queued id=${challenge.id} submittedBy=${challenge.submittedBy}`);
@@ -312,6 +315,60 @@ export function deleteQueuedChallenge(challengeId: string) {
 
 export function clearQueuedChallenges() {
   store.battle.queuedChallenges = [];
+}
+
+async function processChallengeQueue() {
+  if (store.isProcessingChallengeQueue) {
+    debugLog("challenge queue already processing");
+    return;
+  }
+
+  store.isProcessingChallengeQueue = true;
+
+  try {
+    while (
+      store.battle.status === "active" &&
+      activeCompetitorCount() > 1 &&
+      store.battle.queuedChallenges.length > 0
+    ) {
+      const challenge = store.battle.queuedChallenges.pop();
+
+      if (!challenge) {
+        break;
+      }
+
+      const activeChallenge = { ...challenge, target: "active" as const };
+      store.battle.activeChallenges.unshift(activeChallenge);
+      debugLog(
+        `processing queued challenge id=${activeChallenge.id} remainingQueue=${store.battle.queuedChallenges.length}`
+      );
+      await resolveSkirmish(activeChallenge);
+    }
+
+    if (store.battle.status === "active" && activeCompetitorCount() <= 1) {
+      crownWinnerIfReady();
+      debugLog(
+        `challenge queue paused activeCompetitors=${activeCompetitorCount()} queuedChallenges=${store.battle.queuedChallenges.length}`
+      );
+    }
+  } finally {
+    store.isProcessingChallengeQueue = false;
+    if (
+      store.battle.status === "active" &&
+      activeCompetitorCount() > 1 &&
+      store.battle.queuedChallenges.length > 0
+    ) {
+      scheduleChallengeQueueProcessing();
+    }
+  }
+}
+
+function scheduleChallengeQueueProcessing() {
+  void processChallengeQueue().catch((error) => {
+    debugLog(
+      `challenge queue processing failed error=${error instanceof Error ? error.message : String(error)}`
+    );
+  });
 }
 
 async function resolveSkirmish(challenge: Challenge) {
@@ -345,6 +402,17 @@ async function resolveSkirmish(challenge: Challenge) {
     };
   });
 
+  const skirmish: Skirmish = {
+    id: skirmishId,
+    challenge,
+    competitorIds: selected.map((competitor) => competitor.id),
+    results: [],
+    status: "running",
+    createdAt: new Date().toISOString(),
+    summary: "Competitors are attempting the challenge."
+  };
+  store.battle.skirmishes.unshift(skirmish);
+
   const { eliminatedIds, results, status, summary } = await runSkirmishAttempts(
     challenge,
     selected,
@@ -354,13 +422,9 @@ async function resolveSkirmish(challenge: Challenge) {
   eliminatedIds.forEach(eliminateCompetitor);
   recordAnswerHistory(skirmishId, challenge, results);
 
-  store.battle.skirmishes.unshift({
-    id: skirmishId,
-    challenge,
-    competitorIds: selected.map((competitor) => competitor.id),
+  Object.assign(skirmish, {
     results,
     status,
-    createdAt: new Date().toISOString(),
     summary
   });
 
@@ -521,6 +585,11 @@ function crownWinnerIfReady() {
     store.battle.winnerId = activeCompetitors[0].id;
     store.battle.completedAt = new Date().toISOString();
   }
+}
+
+function activeCompetitorCount() {
+  return store.battle.competitors.filter((competitor) => competitor.status === "active")
+    .length;
 }
 
 function createCompetitor(index: number): Competitor {

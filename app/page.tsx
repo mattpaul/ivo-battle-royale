@@ -82,7 +82,7 @@ type Skirmish = {
   id: string;
   challenge: Challenge;
   results: SkirmishResult[];
-  status: "resolved" | "canceled";
+  status: "running" | "resolved" | "canceled";
   createdAt: string;
   summary: string;
 };
@@ -147,9 +147,33 @@ export default function Home() {
     );
   }, [data]);
 
+  const hasLiveBattleWork = useMemo(
+    () =>
+      Boolean(
+        data?.battle.status === "active" &&
+          (data.counts.queuedChallenges > 0 ||
+            data.battle.skirmishes.some((skirmish) => skirmish.status === "running"))
+      ),
+    [data]
+  );
+
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (!hasLiveBattleWork) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      refresh().catch((error) => {
+        setMessage(error instanceof Error ? error.message : "Unable to refresh game.");
+      });
+    }, 2_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasLiveBattleWork]);
 
   async function refresh() {
     const nextData = await api<GameResponse>("/api/game");
@@ -373,7 +397,11 @@ export default function Home() {
                     <li className="item skirmish-log" key={skirmish.id}>
                       <div className="item-title">
                         <strong>{skirmish.challenge.id}</strong>
-                        <span className="pill">{skirmish.status}</span>
+                        <span
+                          className={`pill ${skirmish.status === "running" ? "" : "ok"}`}
+                        >
+                          {skirmish.status}
+                        </span>
                       </div>
                       <span className="muted">{skirmish.summary}</span>
                       {skirmish.results.map((result) => (
