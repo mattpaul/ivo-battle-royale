@@ -26,7 +26,7 @@ BATTLE_ROYALE_AGENT_PROVIDER=openai
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5
 OPENAI_TEMPERATURE=0.2
-OPENAI_MAX_OUTPUT_TOKENS=2048
+OPENAI_MAX_OUTPUT_TOKENS=25000
 ```
 
 The API key is read from the server environment and must not be committed. Deployment will need the same environment variables configured on the remote server.
