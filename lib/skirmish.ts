@@ -3,14 +3,14 @@ import type {
   Competitor,
   Skirmish,
   SkirmishCompetitorResult
-} from "./game-store";
+} from "./game-store.ts";
 
 export type CompetitorAttempt = Omit<SkirmishCompetitorResult, "eliminated">;
 
 export type AttemptRunner = (
   competitor: Competitor,
   challenge: Challenge
-) => CompetitorAttempt;
+) => CompetitorAttempt | Promise<CompetitorAttempt>;
 
 export type ResolvedSkirmish = Pick<Skirmish, "results" | "status" | "summary"> & {
   eliminatedIds: string[];

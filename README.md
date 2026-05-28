@@ -17,6 +17,20 @@ The app uses an in-memory store for the first bare-bones implementation. Set `AD
 
 Example challenge fixtures live in `config/example-challenges.json`.
 
+## Agent configuration
+
+Competitors use the mock attempt runner by default. To configure generated competitors for OpenAI-backed attempts, set:
+
+```bash
+BATTLE_ROYALE_AGENT_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5
+OPENAI_TEMPERATURE=0.2
+OPENAI_MAX_OUTPUT_TOKENS=2048
+```
+
+The API key is read from the server environment and must not be committed. Deployment will need the same environment variables configured on the remote server.
+
 ## REST API
 
 - `GET /api/game` returns the current viewer, battle state, counts, competitors, queued challenges, and skirmish log.

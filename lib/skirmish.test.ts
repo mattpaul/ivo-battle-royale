@@ -5,7 +5,7 @@ import {
   resolveSkirmishAttempts,
   type CompetitorAttempt
 } from "./skirmish.ts";
-import type { Competitor } from "./game-store";
+import { createCompetitorModelConfig, type Competitor } from "./game-store.ts";
 
 const competitors: Competitor[] = [
   competitor("ada", "Ada Lambda"),
@@ -93,6 +93,51 @@ test("preserves the previous mock correct threshold and response-time range", ()
   });
 });
 
+test("configures OpenAI competitors from environment without exposing the API key", () => {
+  withEnv(
+    {
+      BATTLE_ROYALE_AGENT_PROVIDER: "openai",
+      OPENAI_API_KEY: "test-secret-key",
+      OPENAI_MODEL: "gpt-5",
+      OPENAI_TEMPERATURE: "0.1",
+      OPENAI_MAX_OUTPUT_TOKENS: "4096"
+    },
+    () => {
+      const config = createCompetitorModelConfig("01");
+
+      assert.deepEqual(config, {
+        provider: "openai",
+        model: "gpt-5",
+        temperature: 0.1,
+        maxOutputTokens: 4_096,
+        apiKeyEnvVar: "OPENAI_API_KEY",
+        configured: true
+      });
+      assert.equal(JSON.stringify(config).includes("test-secret-key"), false);
+    }
+  );
+});
+
+test("marks OpenAI competitors unconfigured when the API key is missing", () => {
+  withEnv(
+    {
+      BATTLE_ROYALE_AGENT_PROVIDER: "openai",
+      OPENAI_API_KEY: undefined,
+      OPENAI_MODEL: undefined,
+      OPENAI_TEMPERATURE: undefined,
+      OPENAI_MAX_OUTPUT_TOKENS: undefined
+    },
+    () => {
+      const config = createCompetitorModelConfig("01");
+
+      assert.equal(config.provider, "openai");
+      assert.equal(config.model, "gpt-5");
+      assert.equal(config.configured, false);
+      assert.equal(config.apiKeyEnvVar, "OPENAI_API_KEY");
+    }
+  );
+});
+
 function attempt(
   competitorId: string,
   name: string,
@@ -139,7 +184,8 @@ function competitor(id: string, name: string): Competitor {
       provider: "mock",
       model: "mock-code-agent-test",
       temperature: 0,
-      maxOutputTokens: 1_024
+      maxOutputTokens: 1_024,
+      configured: true
     },
     executionLimits: {
       challengeTimeoutMs: 60_000,
@@ -159,4 +205,29 @@ function competitor(id: string, name: string): Competitor {
     },
     answerHistory: []
   };
+}
+
+function withEnv(overrides: Record<string, string | undefined>, callback: () => void) {
+  const previous = Object.fromEntries(
+    Object.keys(overrides).map((key) => [key, process.env[key]])
+  );
+
+  try {
+    Object.entries(overrides).forEach(([key, value]) => {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
+    callback();
+  } finally {
+    Object.entries(previous).forEach(([key, value]) => {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
+  }
 }

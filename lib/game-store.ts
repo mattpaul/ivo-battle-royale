@@ -1,10 +1,10 @@
 import { randomUUID } from "crypto";
 import {
-  AttemptRunner,
   createMockAttemptRunner,
   resolveSkirmishAttempts
-} from "./skirmish";
-import { DEFAULT_COMPETITOR_COUNT } from "./game-config";
+} from "./skirmish.ts";
+import type { AttemptRunner } from "./skirmish.ts";
+import { DEFAULT_COMPETITOR_COUNT } from "./game-config.ts";
 
 export type BattleStatus = "lobby" | "active" | "complete";
 export type ChallengeTarget = "active" | "next";
@@ -35,6 +35,8 @@ export type CompetitorModelConfig = {
   model: string;
   temperature: number;
   maxOutputTokens: number;
+  apiKeyEnvVar?: string;
+  configured: boolean;
 };
 
 export type CompetitorExecutionLimits = {
@@ -86,6 +88,7 @@ export type SkirmishCompetitorResult = {
   name: string;
   answer: "correct" | "incorrect" | "timeout";
   responseTimeMs?: number;
+  submittedAnswer?: string;
   eliminated: boolean;
 };
 
@@ -235,7 +238,11 @@ export function configureBattle(competitorCount: number) {
   store.battle.config.competitorCount = clamp(Math.round(competitorCount), 2, 64);
 }
 
-export function startBattle() {
+export async function startBattle() {
+  const queuedChallenges = store.battle.queuedChallenges.map((challenge) => ({
+    ...challenge,
+    target: "active" as const
+  }));
   const competitors = Array.from(
     { length: store.battle.config.competitorCount },
     (_, index) => createCompetitor(index)
@@ -246,16 +253,27 @@ export function startBattle() {
     status: "active",
     config: { ...store.battle.config },
     competitors,
-    activeChallenges: store.battle.queuedChallenges.map((challenge) => ({
-      ...challenge,
-      target: "active" as const
-    })),
+    activeChallenges: queuedChallenges,
     queuedChallenges: [],
     startedAt: new Date().toISOString()
   };
+
+  debugLog(
+    `battle started competitors=${competitors.length} queuedChallenges=${queuedChallenges.length}`
+  );
+  competitors.forEach((competitor) => {
+    debugLog(
+      `competitor configured id=${competitor.id} provider=${competitor.model.provider} model=${competitor.model.model} configured=${competitor.model.configured}`
+    );
+  });
+
+  for (const challenge of queuedChallenges) {
+    debugLog(`processing queued challenge id=${challenge.id}`);
+    await resolveSkirmish(challenge);
+  }
 }
 
-export function submitChallenge(input: {
+export async function submitChallenge(input: {
   id: string;
   prompt: string;
   expectedAnswer?: string;
@@ -277,9 +295,10 @@ export function submitChallenge(input: {
 
   if (challenge.target === "active" && store.battle.status === "active") {
     store.battle.activeChallenges.unshift(challenge);
-    resolveSkirmish(challenge);
+    await resolveSkirmish(challenge);
   } else {
     store.battle.queuedChallenges.unshift({ ...challenge, target: "next" });
+    debugLog(`challenge queued id=${challenge.id} submittedBy=${challenge.submittedBy}`);
   }
 
   return challenge;
@@ -295,7 +314,7 @@ export function clearQueuedChallenges() {
   store.battle.queuedChallenges = [];
 }
 
-function resolveSkirmish(challenge: Challenge) {
+async function resolveSkirmish(challenge: Challenge) {
   const activeCompetitors = store.battle.competitors.filter(
     (competitor) => competitor.status === "active"
   );
@@ -313,20 +332,23 @@ function resolveSkirmish(challenge: Challenge) {
   const selected = shuffle(activeCompetitors).slice(0, skirmishSize);
   const skirmishId = randomUUID();
   const selectedAt = new Date().toISOString();
+  debugLog(
+    `skirmish created id=${skirmishId} challenge=${challenge.id} competitors=${selected.map((competitor) => competitor.id).join(",")}`
+  );
 
   selected.forEach((competitor) => {
     competitor.runState = {
-      status: "selected",
+      status: "running",
       currentSkirmishId: skirmishId,
       currentChallengeId: challenge.id,
       startedAt: selectedAt
     };
   });
 
-  const { eliminatedIds, results, status, summary } = runSkirmishAttempts(
+  const { eliminatedIds, results, status, summary } = await runSkirmishAttempts(
     challenge,
     selected,
-    createMockAttemptRunner()
+    createConfiguredAttemptRunner()
   );
 
   eliminatedIds.forEach(eliminateCompetitor);
@@ -343,15 +365,130 @@ function resolveSkirmish(challenge: Challenge) {
   });
 
   crownWinnerIfReady();
+  debugLog(`skirmish resolved id=${skirmishId} status=${status} summary="${summary}"`);
 }
 
-function runSkirmishAttempts(
+async function runSkirmishAttempts(
   challenge: Challenge,
   competitors: Competitor[],
   attemptRunner: AttemptRunner
 ) {
-  const attempts = competitors.map((competitor) => attemptRunner(competitor, challenge));
+  const attempts = await Promise.all(
+    competitors.map((competitor) => attemptRunner(competitor, challenge))
+  );
   return resolveSkirmishAttempts(attempts);
+}
+
+function createConfiguredAttemptRunner(): AttemptRunner {
+  const mockAttemptRunner = createMockAttemptRunner();
+
+  return async (competitor, challenge) => {
+    if (competitor.model.provider === "openai") {
+      return runOpenAIAttempt(competitor, challenge);
+    }
+
+    debugLog(
+      `mock attempt competitor=${competitor.id} challenge=${challenge.id} model=${competitor.model.model}`
+    );
+    return mockAttemptRunner(competitor, challenge);
+  };
+}
+
+async function runOpenAIAttempt(
+  competitor: Competitor,
+  challenge: Challenge
+): Promise<Omit<SkirmishCompetitorResult, "eliminated">> {
+  const startedAt = Date.now();
+
+  if (!process.env.OPENAI_API_KEY) {
+    debugLog(
+      `openai attempt skipped competitor=${competitor.id} challenge=${challenge.id} missing OPENAI_API_KEY`
+    );
+    return {
+      competitorId: competitor.id,
+      name: competitor.name,
+      answer: "timeout"
+    };
+  }
+
+  debugLog(
+    `openai attempt start competitor=${competitor.id} challenge=${challenge.id} model=${competitor.model.model} promptChars=${challenge.prompt.length}`
+  );
+
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    competitor.executionLimits.challengeTimeoutMs
+  );
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: competitor.model.model,
+        input: [
+          {
+            role: "developer",
+            content:
+              "You are competing in Battle Royale as an AI coding agent. Solve the challenge and return only the final answer, with no explanation."
+          },
+          {
+            role: "user",
+            content: challenge.prompt
+          }
+        ],
+        max_output_tokens: competitor.model.maxOutputTokens
+      }),
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      debugLog(
+        `openai attempt error competitor=${competitor.id} challenge=${challenge.id} status=${response.status} body=${JSON.stringify(payload).slice(0, 500)}`
+      );
+      return {
+        competitorId: competitor.id,
+        name: competitor.name,
+        answer: "incorrect",
+        responseTimeMs: Date.now() - startedAt
+      };
+    }
+
+    const submittedAnswer = extractOpenAIText(payload);
+    const isCorrect = isCorrectAnswer(submittedAnswer, challenge.expectedAnswer);
+    const responseTimeMs = Date.now() - startedAt;
+
+    debugLog(
+      `openai attempt complete competitor=${competitor.id} challenge=${challenge.id} responseTimeMs=${responseTimeMs} correct=${isCorrect} submitted="${submittedAnswer.slice(0, 160)}"`
+    );
+
+    return {
+      competitorId: competitor.id,
+      name: competitor.name,
+      answer: isCorrect ? "correct" : "incorrect",
+      responseTimeMs,
+      submittedAnswer
+    };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    debugLog(
+      `openai attempt ${isAbort ? "timeout" : "failure"} competitor=${competitor.id} challenge=${challenge.id} error=${error instanceof Error ? error.message : String(error)}`
+    );
+    return {
+      competitorId: competitor.id,
+      name: competitor.name,
+      answer: isAbort ? "timeout" : "incorrect",
+      responseTimeMs: Date.now() - startedAt
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function eliminateCompetitor(competitorId: string) {
@@ -386,12 +523,7 @@ function createCompetitor(index: number): Competitor {
     name: toDisplayName(profile.handle),
     status: "active",
     profile,
-    model: {
-      provider: "mock",
-      model: `mock-code-agent-${displayNumber}`,
-      temperature: 0.2,
-      maxOutputTokens: 2_048
-    },
+    model: createCompetitorModelConfig(displayNumber),
     executionLimits: {
       challengeTimeoutMs: 60_000,
       maxCpuMs: 10_000,
@@ -409,6 +541,31 @@ function createCompetitor(index: number): Competitor {
       filesystem: "ephemeral"
     },
     answerHistory: []
+  };
+}
+
+export function createCompetitorModelConfig(
+  displayNumber: string
+): CompetitorModelConfig {
+  const provider = process.env.BATTLE_ROYALE_AGENT_PROVIDER ?? "mock";
+
+  if (provider === "openai") {
+    return {
+      provider: "openai",
+      model: process.env.OPENAI_MODEL ?? "gpt-5",
+      temperature: parseNumber(process.env.OPENAI_TEMPERATURE, 0.2),
+      maxOutputTokens: parseInteger(process.env.OPENAI_MAX_OUTPUT_TOKENS, 2_048),
+      apiKeyEnvVar: "OPENAI_API_KEY",
+      configured: Boolean(process.env.OPENAI_API_KEY)
+    };
+  }
+
+  return {
+    provider: "mock",
+    model: `mock-code-agent-${displayNumber}`,
+    temperature: 0.2,
+    maxOutputTokens: 2_048,
+    configured: true
   };
 }
 
@@ -463,4 +620,70 @@ function shuffle<T>(items: T[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function parseInteger(value: string | undefined, fallback: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseNumber(value: string | undefined, fallback: number) {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function extractOpenAIText(payload: unknown) {
+  if (isRecord(payload) && typeof payload.output_text === "string") {
+    return payload.output_text.trim();
+  }
+
+  if (!isRecord(payload) || !Array.isArray(payload.output)) {
+    return "";
+  }
+
+  return payload.output
+    .flatMap((item) => {
+      if (!isRecord(item) || !Array.isArray(item.content)) {
+        return [];
+      }
+
+      return item.content.map((content) => {
+        if (isRecord(content) && typeof content.text === "string") {
+          return content.text;
+        }
+
+        return "";
+      });
+    })
+    .join("")
+    .trim();
+}
+
+function isCorrectAnswer(submittedAnswer: string, expectedAnswer?: string) {
+  if (!expectedAnswer) {
+    return false;
+  }
+
+  const submitted = normalizeAnswer(submittedAnswer);
+  const expected = normalizeAnswer(expectedAnswer);
+
+  return submitted === expected || submitted.includes(expected);
+}
+
+function normalizeAnswer(answer: string) {
+  return answer
+    .trim()
+    .replace(/^```[a-z]*\n?/i, "")
+    .replace(/```$/i, "")
+    .replace(/^["'`]|["'`]$/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function debugLog(message: string) {
+  console.info(`[battle-royale] ${message}`);
 }

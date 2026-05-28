@@ -9,6 +9,6 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
-  startBattle();
+  await startBattle();
   return NextResponse.json(getPublicState());
 }

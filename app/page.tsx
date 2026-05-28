@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-config";
+import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-config.ts";
 
 type Viewer = {
   username: string;
@@ -25,6 +25,8 @@ type Competitor = {
     model: string;
     temperature: number;
     maxOutputTokens: number;
+    apiKeyEnvVar?: string;
+    configured: boolean;
   };
   executionLimits: {
     challengeTimeoutMs: number;
@@ -298,11 +300,19 @@ export default function Home() {
                       <div className="chips">
                         <span className="pill">{competitor.model.provider}</span>
                         <span className="pill">{competitor.model.model}</span>
+                        <span className={`pill ${competitor.model.configured ? "ok" : "out"}`}>
+                          {competitor.model.configured ? "configured" : "missing key"}
+                        </span>
                         <span className="pill">{competitor.runState.status}</span>
                         <span className="pill">
                           {competitor.executionLimits.challengeTimeoutMs / 1000}s
                         </span>
                       </div>
+                      {competitor.model.apiKeyEnvVar ? (
+                        <span className="muted">
+                          API key: {competitor.model.apiKeyEnvVar}
+                        </span>
+                      ) : null}
                       <span className="muted">
                         Sandbox: {competitor.sandbox.runtime}, {competitor.sandbox.network}{" "}
                         network

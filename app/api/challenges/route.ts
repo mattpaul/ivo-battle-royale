@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const target = body.target === "active" ? "active" : "next";
 
   try {
-    const challenge = submitChallenge({
+    const challenge = await submitChallenge({
       id: String(body.id || ""),
       prompt: String(body.prompt || ""),
       expectedAnswer: body.expectedAnswer ? String(body.expectedAnswer) : undefined,
