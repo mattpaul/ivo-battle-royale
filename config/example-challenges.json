@@ -5,9 +5,14 @@
     "answer": "4057"
   },
   {
-    "id": "factorial",
+    "id": "10-factorial",
     "prompt": "Compute the value of 10 factorial",
     "answer": "3628800"
+  },
+  {
+    "id": "21-factorial",
+    "prompt": "Compute the value of 21 factorial",
+    "answer": "51090942171709440000"
   },
   {
     "id": "md5-ai-battle-royale",
