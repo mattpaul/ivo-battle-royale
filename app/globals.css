@@ -8,6 +8,7 @@
   --accent: #0f766e;
   --accent-strong: #115e59;
   --danger: #b42318;
+  --info: #2563eb;
   --ok: #287a39;
 }
 
@@ -261,6 +262,10 @@ label {
 
 .pill.out {
   color: var(--danger);
+}
+
+.pill.info {
+  color: var(--info);
 }
 
 .skirmish-log {

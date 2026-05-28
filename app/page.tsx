@@ -122,6 +122,36 @@ type ExampleChallenge = {
   answer: string;
 };
 
+function competitorStatusPillClass(status: Competitor["status"]) {
+  if (status === "eliminated") {
+    return "pill out";
+  }
+
+  if (status === "winner") {
+    return "pill ok";
+  }
+
+  return "pill";
+}
+
+function runStatePillClass(status: Competitor["runState"]["status"]) {
+  const normalizedStatus = status.toLowerCase();
+
+  if (normalizedStatus === "eliminated") {
+    return "pill out";
+  }
+
+  if (normalizedStatus === "running" || normalizedStatus === "winner") {
+    return "pill ok";
+  }
+
+  if (normalizedStatus === "idle") {
+    return "pill info";
+  }
+
+  return "pill";
+}
+
 const blankChallenge: ChallengeForm = {
   id: "",
   prompt: "",
@@ -363,57 +393,40 @@ export default function Home() {
               <h2>Competitors</h2>
               <ul className="list">
                 {data.battle.competitors.length ? (
-                  data.battle.competitors.map((competitor) => (
-                    <li
-                      className="item"
-                      key={competitor.id}
-                      style={{ borderLeft: `4px solid ${competitor.profile.accentColor}` }}
-                    >
-                      <div className="item-title">
-                        <strong>{competitor.name}</strong>
-                        <span
-                          className={`pill ${
-                            competitor.status === "active" || competitor.status === "winner"
-                              ? "ok"
-                              : "out"
-                          }`}
-                        >
-                          {competitor.status}
-                        </span>
-                      </div>
-                      <span className="muted">{competitor.profile.tagline}</span>
-                      <span>{competitor.profile.strategy}</span>
-                      <div className="chips">
-                        <span className="pill">{competitor.model.provider}</span>
-                        <span className="pill">{competitor.model.model}</span>
-                        <span className={`pill ${competitor.model.configured ? "ok" : "out"}`}>
-                          {competitor.model.configured ? "configured" : "missing key"}
-                        </span>
-                        <span className="pill">{competitor.runState.status}</span>
-                        <span className="pill">
-                          {competitor.executionLimits.challengeTimeoutMs / 1000}s
-                        </span>
-                      </div>
-                      {competitor.model.apiKeyEnvVar ? (
+                  data.battle.competitors.map((competitor) => {
+                    const lastAnswer = competitor.answerHistory[0];
+
+                    return (
+                      <li
+                        className="item"
+                        key={competitor.id}
+                        style={{ borderLeft: `4px solid ${competitor.profile.accentColor}` }}
+                      >
+                        <div className="item-title">
+                          <strong>{competitor.name}</strong>
+                          <span className={competitorStatusPillClass(competitor.status)}>
+                            {competitor.status}
+                          </span>
+                        </div>
+                        <span className="muted">{competitor.profile.tagline}</span>
+                        <span>{competitor.profile.strategy}</span>
+                        <div className="chips">
+                          <span className="pill">{competitor.model.provider}</span>
+                          <span className="pill">{competitor.model.model}</span>
+                          <span className={runStatePillClass(competitor.runState.status)}>
+                            {competitor.runState.status}
+                          </span>
+                          {lastAnswer?.outcome === "timeout" ? (
+                            <span className="pill out">timeout</span>
+                          ) : null}
+                        </div>
                         <span className="muted">
-                          API key: {competitor.model.apiKeyEnvVar}
+                          Attempts: {competitor.answerHistory.length}
+                          {lastAnswer ? `, last ${lastAnswer.outcome}` : ""}
                         </span>
-                      ) : null}
-                      <span className="muted">
-                        Sandbox: {competitor.sandbox.runtime}, {competitor.sandbox.network}{" "}
-                        network
-                      </span>
-                      <span className="muted">
-                        Strengths: {competitor.profile.strengths.join(", ")}
-                      </span>
-                      <span className="muted">
-                        Attempts: {competitor.answerHistory.length}
-                        {competitor.answerHistory[0]
-                          ? `, last ${competitor.answerHistory[0].outcome}`
-                          : ""}
-                      </span>
-                    </li>
-                  ))
+                      </li>
+                    );
+                  })
                 ) : (
                   <li className="empty">No competitors yet.</li>
                 )}
