@@ -132,6 +132,7 @@ const blankChallenge: ChallengeForm = {
 export default function Home() {
   const [data, setData] = useState<GameResponse | null>(null);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"info" | "error">("info");
   const [username, setUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [competitorCount, setCompetitorCount] = useState(DEFAULT_COMPETITOR_COUNT);
@@ -170,6 +171,7 @@ export default function Home() {
     const intervalId = window.setInterval(() => {
       refresh().catch((error) => {
         setMessage(error instanceof Error ? error.message : "Unable to refresh game.");
+        setMessageTone("error");
       });
     }, 2_000);
 
@@ -185,91 +187,119 @@ export default function Home() {
 
   async function saveSpectator(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const response = await api<{ viewer: Viewer }>("/api/spectator/session", {
-      method: "POST",
-      body: JSON.stringify({ username })
+    await runAction(async () => {
+      const response = await api<{ viewer: Viewer }>("/api/spectator/session", {
+        method: "POST",
+        body: JSON.stringify({ username })
+      });
+      setMessage(`Spectating as ${response.viewer.username}.`);
+      await refresh();
     });
-    setMessage(`Spectating as ${response.viewer.username}.`);
-    await refresh();
   }
 
   async function loginAdmin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await api("/api/admin/login", {
-      method: "POST",
-      body: JSON.stringify({ username: username || "Admin", password: adminPassword })
+    await runAction(async () => {
+      await api("/api/admin/login", {
+        method: "POST",
+        body: JSON.stringify({ username: username || "Admin", password: adminPassword })
+      });
+      setAdminPassword("");
+      setMessage("Admin controls unlocked.");
+      await refresh();
     });
-    setAdminPassword("");
-    setMessage("Admin controls unlocked.");
-    await refresh();
   }
 
   async function logoutAdmin() {
-    await api("/api/admin/logout", { method: "POST" });
-    setMessage("Admin session ended.");
-    await refresh();
+    await runAction(async () => {
+      await api("/api/admin/logout", { method: "POST" });
+      setMessage("Admin session ended.");
+      await refresh();
+    });
   }
 
   async function saveConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await api("/api/admin/battle/config", {
-      method: "PATCH",
-      body: JSON.stringify({ competitorCount })
+    await runAction(async () => {
+      await api("/api/admin/battle/config", {
+        method: "PATCH",
+        body: JSON.stringify({ competitorCount })
+      });
+      setMessage("Battle configuration saved.");
+      await refresh();
     });
-    setMessage("Battle configuration saved.");
-    await refresh();
   }
 
   async function startBattle() {
-    await api("/api/admin/battle/start", { method: "POST" });
-    setMessage("Battle started.");
-    await refresh();
+    await runAction(async () => {
+      await api("/api/admin/battle/start", { method: "POST" });
+      setMessage("Battle started.");
+      await refresh();
+    });
   }
 
   async function submitChallenge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await api("/api/challenges", {
-      method: "POST",
-      body: JSON.stringify(challenge)
+    await runAction(async () => {
+      await api("/api/challenges", {
+        method: "POST",
+        body: JSON.stringify(challenge)
+      });
+      setChallenge(blankChallenge);
+      setMessage("Challenge submitted.");
+      await refresh();
     });
-    setChallenge(blankChallenge);
-    setMessage("Challenge submitted.");
-    await refresh();
   }
 
   async function enqueueExampleChallenge() {
-    const selectedExample = (exampleChallenges as ExampleChallenge[]).find(
-      (example) => example.id === selectedExampleId
-    );
+    await runAction(async () => {
+      const selectedExample = (exampleChallenges as ExampleChallenge[]).find(
+        (example) => example.id === selectedExampleId
+      );
 
-    if (!selectedExample) {
-      setMessage("Select an example challenge first.");
-      return;
-    }
+      if (!selectedExample) {
+        setMessage("Select an example challenge first.");
+        return;
+      }
 
-    await api("/api/challenges", {
-      method: "POST",
-      body: JSON.stringify({
-        id: selectedExample.id,
-        prompt: selectedExample.prompt,
-        expectedAnswer: selectedExample.answer,
-        target: "next"
-      })
+      await api("/api/challenges", {
+        method: "POST",
+        body: JSON.stringify({
+          id: selectedExample.id,
+          prompt: selectedExample.prompt,
+          expectedAnswer: selectedExample.answer,
+          target: "next"
+        })
+      });
+      setMessage(`Enqueued ${selectedExample.id}.`);
+      await refresh();
     });
-    setMessage(`Enqueued ${selectedExample.id}.`);
-    await refresh();
   }
 
   async function deleteChallenge(submissionId: string) {
-    await api(`/api/challenges/${submissionId}`, { method: "DELETE" });
-    setMessage("Queued challenge removed.");
-    await refresh();
+    await runAction(async () => {
+      await api(`/api/challenges/${submissionId}`, { method: "DELETE" });
+      setMessage("Queued challenge removed.");
+      await refresh();
+    });
   }
 
   async function clearQueue() {
-    await api("/api/challenges", { method: "DELETE" });
-    setMessage("Queued challenges cleared.");
-    await refresh();
+    await runAction(async () => {
+      await api("/api/challenges", { method: "DELETE" });
+      setMessage("Queued challenges cleared.");
+      await refresh();
+    });
+  }
+
+  async function runAction(action: () => Promise<void>) {
+    try {
+      setMessageTone("info");
+      await action();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Request failed.");
+      setMessageTone("error");
+    }
   }
 
   if (!data) {
@@ -325,7 +355,7 @@ export default function Home() {
               </div>
             </div>
             {winner ? <strong>{winner.name} is the champion 🎉</strong> : null}
-            {message ? <p>{message}</p> : null}
+            {message ? <p className={`message ${messageTone}`}>{message}</p> : null}
           </section>
 
           <div className="grid">

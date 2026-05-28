@@ -147,6 +147,11 @@ label {
   max-width: 720px;
 }
 
+.message.error {
+  color: var(--danger);
+  font-weight: 750;
+}
+
 .stats {
   display: grid;
   gap: 10px;
