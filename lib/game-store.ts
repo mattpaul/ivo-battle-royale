@@ -31,7 +31,7 @@ export type CompetitorProfile = {
 };
 
 export type CompetitorModelConfig = {
-  provider: "mock" | "openai" | "anthropic" | "local";
+  provider: "mock" | "openai" | "openai_coding_agent" | "anthropic" | "local";
   model: string;
   temperature: number;
   maxOutputTokens: number;
@@ -455,6 +455,7 @@ export function createConfiguredAttemptRunner(): AttemptRunner {
         return createMockAttemptRunner()(competitor, challenge);
       }
       case "openai":
+      case "openai_coding_agent":
         return runOpenAIAttempt(competitor, challenge);
       default:
         debugLog(
@@ -503,21 +504,7 @@ async function runOpenAIAttempt(
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model: competitor.model.model,
-        input: [
-          {
-            role: "developer",
-            content:
-              "You are competing in Battle Royale as an AI coding agent. Solve the challenge and return only the final answer, with no explanation."
-          },
-          {
-            role: "user",
-            content: challenge.prompt
-          }
-        ],
-        max_output_tokens: competitor.model.maxOutputTokens
-      }),
+      body: JSON.stringify(buildOpenAIResponseRequestBody(competitor, challenge)),
       signal: controller.signal
     });
 
@@ -629,10 +616,13 @@ export function createCompetitorModelConfig(
 ): CompetitorModelConfig {
   const provider = process.env.BATTLE_ROYALE_AGENT_PROVIDER ?? "mock";
 
-  if (provider === "openai") {
+  if (provider === "openai" || provider === "openai_coding_agent") {
     return {
-      provider: "openai",
-      model: process.env.OPENAI_MODEL ?? "gpt-5",
+      provider,
+      model:
+        provider === "openai_coding_agent"
+          ? process.env.OPENAI_CODING_AGENT_MODEL ?? "gpt-5"
+          : process.env.OPENAI_MODEL ?? "gpt-5",
       temperature: parseNumber(process.env.OPENAI_TEMPERATURE, 0.2),
       maxOutputTokens: parseInteger(process.env.OPENAI_MAX_OUTPUT_TOKENS, 2_048),
       apiKeyEnvVar: "OPENAI_API_KEY",
@@ -646,6 +636,37 @@ export function createCompetitorModelConfig(
     temperature: 0.2,
     maxOutputTokens: 2_048,
     configured: true
+  };
+}
+
+export function buildOpenAIResponseRequestBody(
+  competitor: Competitor,
+  challenge: Challenge
+) {
+  return {
+    model: competitor.model.model,
+    input: [
+      {
+        role: "developer",
+        content:
+          "You are competing in Battle Royale as an AI coding agent. Solve the challenge and return only the final answer, with no explanation."
+      },
+      {
+        role: "user",
+        content: challenge.prompt
+      }
+    ],
+    max_output_tokens: competitor.model.maxOutputTokens,
+    ...(competitor.model.provider === "openai_coding_agent"
+      ? {
+          tools: [
+            {
+              type: "code_interpreter",
+              container: { type: "auto", memory_limit: "4g" }
+            }
+          ]
+        }
+      : {})
   };
 }
 

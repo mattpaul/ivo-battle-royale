@@ -6,6 +6,7 @@ import {
   type CompetitorAttempt
 } from "./skirmish.ts";
 import {
+  buildOpenAIResponseRequestBody,
   createConfiguredAttemptRunner,
   createCompetitorModelConfig,
   type Competitor
@@ -142,6 +143,69 @@ test("marks OpenAI competitors unconfigured when the API key is missing", () => 
   );
 });
 
+test("configures OpenAI coding agent competitors from environment", () => {
+  withEnv(
+    {
+      BATTLE_ROYALE_AGENT_PROVIDER: "openai_coding_agent",
+      OPENAI_API_KEY: "test-secret-key",
+      OPENAI_CODING_AGENT_MODEL: "gpt-5",
+      OPENAI_MODEL: undefined,
+      OPENAI_TEMPERATURE: "0.2",
+      OPENAI_MAX_OUTPUT_TOKENS: "2048"
+    },
+    () => {
+      const config = createCompetitorModelConfig("01");
+
+      assert.deepEqual(config, {
+        provider: "openai_coding_agent",
+        model: "gpt-5",
+        temperature: 0.2,
+        maxOutputTokens: 2_048,
+        apiKeyEnvVar: "OPENAI_API_KEY",
+        configured: true
+      });
+      assert.equal(JSON.stringify(config).includes("test-secret-key"), false);
+    }
+  );
+});
+
+test("adds code interpreter tools for OpenAI coding agent responses", () => {
+  const codingAgent = competitor("coding", "Coding Agent");
+  codingAgent.model = {
+    provider: "openai_coding_agent",
+    model: "gpt-5",
+    temperature: 0.2,
+    maxOutputTokens: 2_048,
+    apiKeyEnvVar: "OPENAI_API_KEY",
+    configured: true
+  };
+
+  const body = buildOpenAIResponseRequestBody(codingAgent, sampleChallenge());
+
+  assert.deepEqual(body.tools, [
+    {
+      type: "code_interpreter",
+      container: { type: "auto", memory_limit: "4g" }
+    }
+  ]);
+});
+
+test("does not add code interpreter tools for plain OpenAI responses", () => {
+  const openAICompetitor = competitor("openai", "OpenAI Agent");
+  openAICompetitor.model = {
+    provider: "openai",
+    model: "gpt-4o-mini",
+    temperature: 0.2,
+    maxOutputTokens: 2_048,
+    apiKeyEnvVar: "OPENAI_API_KEY",
+    configured: true
+  };
+
+  const body = buildOpenAIResponseRequestBody(openAICompetitor, sampleChallenge());
+
+  assert.equal("tools" in body, false);
+});
+
 test("does not fall back to mock attempts for OpenAI competitors", async () => {
   await withEnv(
     {
@@ -164,6 +228,34 @@ test("does not fall back to mock attempts for OpenAI competitors", async () => {
       assert.deepEqual(result, {
         competitorId: "openai",
         name: "OpenAI Agent",
+        answer: "timeout"
+      });
+    }
+  );
+});
+
+test("does not fall back to mock attempts for OpenAI coding agent competitors", async () => {
+  await withEnv(
+    {
+      OPENAI_API_KEY: undefined
+    },
+    async () => {
+      const codingAgent = competitor("coding", "Coding Agent");
+      codingAgent.model = {
+        provider: "openai_coding_agent",
+        model: "gpt-5",
+        temperature: 0.2,
+        maxOutputTokens: 2_048,
+        apiKeyEnvVar: "OPENAI_API_KEY",
+        configured: false
+      };
+
+      const attemptRunner = createConfiguredAttemptRunner();
+      const result = await attemptRunner(codingAgent, sampleChallenge());
+
+      assert.deepEqual(result, {
+        competitorId: "coding",
+        name: "Coding Agent",
         answer: "timeout"
       });
     }
