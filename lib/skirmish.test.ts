@@ -8,9 +8,9 @@ import {
 import type { Competitor } from "./game-store";
 
 const competitors: Competitor[] = [
-  { id: "ada", name: "Ada Lambda", status: "active" },
-  { id: "grace", name: "Grace Hopperbot", status: "active" },
-  { id: "linus", name: "Linus Loop", status: "active" }
+  competitor("ada", "Ada Lambda"),
+  competitor("grace", "Grace Hopperbot"),
+  competitor("linus", "Linus Loop")
 ];
 
 test("cancels the skirmish when every competitor fails", () => {
@@ -120,4 +120,43 @@ function sampleChallenge() {
 function sequence(values: number[]) {
   let index = 0;
   return () => values[index++] ?? values.at(-1) ?? 0;
+}
+
+function competitor(id: string, name: string): Competitor {
+  return {
+    id,
+    name,
+    status: "active",
+    profile: {
+      handle: id,
+      tagline: "Test competitor",
+      temperament: "Deterministic",
+      strategy: "Return controlled mock attempts.",
+      strengths: ["tests"],
+      accentColor: "#0f766e"
+    },
+    model: {
+      provider: "mock",
+      model: "mock-code-agent-test",
+      temperature: 0,
+      maxOutputTokens: 1_024
+    },
+    executionLimits: {
+      challengeTimeoutMs: 60_000,
+      maxCpuMs: 10_000,
+      maxMemoryMb: 256,
+      maxSourceBytes: 20_000
+    },
+    runState: {
+      status: "idle"
+    },
+    sandbox: {
+      runtime: "nodejs",
+      image: "node:24-slim",
+      workingDirectory: `/tmp/battle-royale/${id}`,
+      network: "disabled",
+      filesystem: "ephemeral"
+    },
+    answerHistory: []
+  };
 }

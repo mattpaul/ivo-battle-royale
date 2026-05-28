@@ -1,0 +1,1 @@
+export const DEFAULT_COMPETITOR_COUNT = 4;

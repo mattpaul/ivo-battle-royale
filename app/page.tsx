@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-store";
+import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-config";
 
 type Viewer = {
   username: string;
@@ -12,6 +12,51 @@ type Competitor = {
   id: string;
   name: string;
   status: "active" | "eliminated" | "winner";
+  profile: {
+    handle: string;
+    tagline: string;
+    temperament: string;
+    strategy: string;
+    strengths: string[];
+    accentColor: string;
+  };
+  model: {
+    provider: string;
+    model: string;
+    temperature: number;
+    maxOutputTokens: number;
+  };
+  executionLimits: {
+    challengeTimeoutMs: number;
+    maxCpuMs: number;
+    maxMemoryMb: number;
+    maxSourceBytes: number;
+  };
+  runState: {
+    status: string;
+    currentSkirmishId?: string;
+    currentChallengeId?: string;
+    lastSkirmishId?: string;
+    lastChallengeId?: string;
+    startedAt?: string;
+    completedAt?: string;
+    lastError?: string;
+  };
+  sandbox: {
+    runtime: string;
+    image: string;
+    workingDirectory: string;
+    network: string;
+    filesystem: string;
+  };
+  answerHistory: Array<{
+    challengeId: string;
+    skirmishId: string;
+    outcome: "correct" | "incorrect" | "timeout";
+    responseTimeMs?: number;
+    eliminated: boolean;
+    recordedAt: string;
+  }>;
 };
 
 type Challenge = {
@@ -231,7 +276,11 @@ export default function Home() {
               <ul className="list">
                 {data.battle.competitors.length ? (
                   data.battle.competitors.map((competitor) => (
-                    <li className="item" key={competitor.id}>
+                    <li
+                      className="item"
+                      key={competitor.id}
+                      style={{ borderLeft: `4px solid ${competitor.profile.accentColor}` }}
+                    >
                       <div className="item-title">
                         <strong>{competitor.name}</strong>
                         <span
@@ -244,6 +293,29 @@ export default function Home() {
                           {competitor.status}
                         </span>
                       </div>
+                      <span className="muted">{competitor.profile.tagline}</span>
+                      <span>{competitor.profile.strategy}</span>
+                      <div className="chips">
+                        <span className="pill">{competitor.model.provider}</span>
+                        <span className="pill">{competitor.model.model}</span>
+                        <span className="pill">{competitor.runState.status}</span>
+                        <span className="pill">
+                          {competitor.executionLimits.challengeTimeoutMs / 1000}s
+                        </span>
+                      </div>
+                      <span className="muted">
+                        Sandbox: {competitor.sandbox.runtime}, {competitor.sandbox.network}{" "}
+                        network
+                      </span>
+                      <span className="muted">
+                        Strengths: {competitor.profile.strengths.join(", ")}
+                      </span>
+                      <span className="muted">
+                        Attempts: {competitor.answerHistory.length}
+                        {competitor.answerHistory[0]
+                          ? `, last ${competitor.answerHistory[0].outcome}`
+                          : ""}
+                      </span>
                     </li>
                   ))
                 ) : (
