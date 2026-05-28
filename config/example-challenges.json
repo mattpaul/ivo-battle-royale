@@ -1,8 +1,8 @@
 [
   {
     "id": "md5-ai-battle-royale",
-    "prompt": "What is the md5sum of \"AI Battle Royale\"?",
-    "answer": "4359c152baed9981d7b783b6a8bf2704"
+    "prompt": "Compute the md5sum of the string \"AI Battle Royale\" excluding quotes.",
+    "answer": "79b19e2cd1e13cb6cdfbde9d86b97621"
   },
   {
     "id": "hex-255-power-10",

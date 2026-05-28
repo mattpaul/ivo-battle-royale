@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import exampleChallenges from "../config/example-challenges.json";
 import { DEFAULT_COMPETITOR_COUNT } from "../lib/game-config.ts";
 
 type Viewer = {
@@ -114,6 +115,12 @@ type ChallengeForm = {
   target: "active" | "next";
 };
 
+type ExampleChallenge = {
+  id: string;
+  prompt: string;
+  answer: string;
+};
+
 const blankChallenge: ChallengeForm = {
   id: "",
   prompt: "",
@@ -128,6 +135,7 @@ export default function Home() {
   const [adminPassword, setAdminPassword] = useState("");
   const [competitorCount, setCompetitorCount] = useState(DEFAULT_COMPETITOR_COUNT);
   const [challenge, setChallenge] = useState(blankChallenge);
+  const [selectedExampleId, setSelectedExampleId] = useState(exampleChallenges[0]?.id ?? "");
 
   const winner = useMemo(() => {
     if (!data?.battle.winnerId) {
@@ -201,6 +209,29 @@ export default function Home() {
     });
     setChallenge(blankChallenge);
     setMessage("Challenge submitted.");
+    await refresh();
+  }
+
+  async function enqueueExampleChallenge() {
+    const selectedExample = (exampleChallenges as ExampleChallenge[]).find(
+      (example) => example.id === selectedExampleId
+    );
+
+    if (!selectedExample) {
+      setMessage("Select an example challenge first.");
+      return;
+    }
+
+    await api("/api/challenges", {
+      method: "POST",
+      body: JSON.stringify({
+        id: selectedExample.id,
+        prompt: selectedExample.prompt,
+        expectedAnswer: selectedExample.answer,
+        target: "next"
+      })
+    });
+    setMessage(`Enqueued ${selectedExample.id}.`);
     await refresh();
   }
 
@@ -383,6 +414,28 @@ export default function Home() {
 
           <section className="panel">
             <h2>Submit challenge</h2>
+            <div className="form">
+              <label>
+                Example challenge
+                <select
+                  onChange={(event) => setSelectedExampleId(event.target.value)}
+                  value={selectedExampleId}
+                >
+                  {(exampleChallenges as ExampleChallenge[]).map((example) => (
+                    <option key={example.id} value={example.id}>
+                      {example.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                disabled={!selectedExampleId}
+                onClick={enqueueExampleChallenge}
+                type="button"
+              >
+                Enqueue example
+              </button>
+            </div>
             <form className="form" onSubmit={submitChallenge}>
               <label>
                 Destination
