@@ -75,6 +75,7 @@ export type CompetitorAnswerHistoryEntry = {
 };
 
 export type Challenge = {
+  submissionId: string;
   id: string;
   prompt: string;
   expectedAnswer?: string;
@@ -280,6 +281,7 @@ export async function submitChallenge(input: {
   target: ChallengeTarget;
 }) {
   const challenge: Challenge = {
+    submissionId: randomUUID(),
     id: input.id.trim(),
     prompt: input.prompt.trim(),
     expectedAnswer: input.expectedAnswer?.trim() || undefined,
@@ -307,9 +309,9 @@ export async function submitChallenge(input: {
   return challenge;
 }
 
-export function deleteQueuedChallenge(challengeId: string) {
+export function deleteQueuedChallenge(submissionId: string) {
   store.battle.queuedChallenges = store.battle.queuedChallenges.filter(
-    (challenge) => challenge.id !== challengeId
+    (challenge) => challenge.submissionId !== submissionId
   );
 }
 

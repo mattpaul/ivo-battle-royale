@@ -63,6 +63,7 @@ type Competitor = {
 };
 
 type Challenge = {
+  submissionId: string;
   id: string;
   prompt: string;
   submittedBy: string;
@@ -259,8 +260,8 @@ export default function Home() {
     await refresh();
   }
 
-  async function deleteChallenge(id: string) {
-    await api(`/api/challenges/${id}`, { method: "DELETE" });
+  async function deleteChallenge(submissionId: string) {
+    await api(`/api/challenges/${submissionId}`, { method: "DELETE" });
     setMessage("Queued challenge removed.");
     await refresh();
   }
@@ -535,13 +536,13 @@ export default function Home() {
             <ul className="list">
               {data.battle.queuedChallenges.length ? (
                 data.battle.queuedChallenges.map((queued) => (
-                  <li className="item" key={queued.id}>
+                  <li className="item" key={queued.submissionId}>
                     <div className="item-title">
                       <strong>{queued.id}</strong>
                       {isAdmin ? (
                         <button
                           className="secondary"
-                          onClick={() => deleteChallenge(queued.id)}
+                          onClick={() => deleteChallenge(queued.submissionId)}
                           type="button"
                         >
                           Delete

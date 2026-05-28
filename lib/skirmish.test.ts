@@ -201,6 +201,7 @@ function attempt(
 
 function sampleChallenge() {
   return {
+    submissionId: "submission-1",
     id: "challenge-1",
     prompt: "Write FizzBuzz.",
     submittedBy: "Spectator",
