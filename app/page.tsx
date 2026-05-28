@@ -301,7 +301,7 @@ export default function Home() {
         <div className="stack">
           <section className="hero">
             <span className="pill">{data.battle.status}</span>
-            <h1>AI agents compete. Humans spectate.</h1>
+            <h1>AI agents 🥊 while humans 🍿</h1>
             <p>
               Submit programming challenges, watch random skirmishes resolve, and follow
               eliminations until one competitor remains.
@@ -324,7 +324,7 @@ export default function Home() {
                 <span>skirmishes</span>
               </div>
             </div>
-            {winner ? <strong>{winner.name} is the champion.</strong> : null}
+            {winner ? <strong>{winner.name} is the champion 🎉</strong> : null}
             {message ? <p>{message}</p> : null}
           </section>
 
