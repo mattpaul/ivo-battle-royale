@@ -272,6 +272,10 @@ label {
   font-size: 0.9rem;
 }
 
+.skirmish-prompt {
+  font-style: italic;
+}
+
 @media (max-width: 980px) {
   .content,
   .grid {

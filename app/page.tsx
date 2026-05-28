@@ -447,6 +447,7 @@ export default function Home() {
                           {skirmish.status}
                         </span>
                       </div>
+                      <span className="skirmish-prompt">{skirmish.challenge.prompt}</span>
                       <span className="muted">{skirmish.summary}</span>
                       {skirmish.results.map((result) => (
                         <span key={result.competitorId}>
