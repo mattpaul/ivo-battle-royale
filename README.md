@@ -31,6 +31,12 @@ OPENAI_MAX_OUTPUT_TOKENS=2048
 
 The API key is read from the server environment and must not be committed. Deployment will need the same environment variables configured on the remote server.
 
+Specify `openai_coding_agent` as provider to invoke the Code Interpreter which allows OpenAI models to write and Python code in a sandboxed environment:
+
+```bash
+BATTLE_ROYALE_AGENT_PROVIDER=openai_coding_agent
+```
+
 ## REST API
 
 - `GET /api/game` returns the current viewer, battle state, counts, competitors, queued challenges, and skirmish log.
