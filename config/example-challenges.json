@@ -1,7 +1,17 @@
 [
   {
+    "id": "ascii-sum-pangram",
+    "prompt": "What is the sum of the ASCII values of every character in the string \"The quick brown fox jumps over the lazy dog\"?",
+    "answer": "4057"
+  },
+  {
+    "id": "factorial",
+    "prompt": "Compute the value of 10 factorial",
+    "answer": "3628800"
+  },
+  {
     "id": "md5-ai-battle-royale",
-    "prompt": "Compute the md5sum of the string \"AI Battle Royale\" excluding quotes.",
+    "prompt": "Compute the md5sum of the string \"AI Battle Royale\"",
     "answer": "79b19e2cd1e13cb6cdfbde9d86b97621"
   },
   {
@@ -18,10 +28,5 @@
     "id": "modular-exponentiation",
     "prompt": "What is 7^77 mod 999999937?",
     "answer": "860842589"
-  },
-  {
-    "id": "ascii-sum-pangram",
-    "prompt": "What is the sum of the ASCII values of every character in the string \"The quick brown fox jumps over the lazy dog\"?",
-    "answer": "4057"
   }
 ]
